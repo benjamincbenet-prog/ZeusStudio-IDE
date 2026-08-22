@@ -1,0 +1,6 @@
+{
+  "name": "Zeus CLI IDE",
+  "description": "Zeus CLI developer environment and IDE for Zepp OS with real-time Bip Max watch simulator, code editor, compiler, terminal runner, and BLE bridge.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
