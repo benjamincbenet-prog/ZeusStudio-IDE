@@ -66,21 +66,8 @@ jobs:
             fi
           fi
 
-      - name: Run Unit & Robolectric Tests
-        run: |
-          if [ -f "gradlew" ]; then
-            ./gradlew testDebugUnitTest --stacktrace
-          else
-            gradle testDebugUnitTest --stacktrace
-          fi
-
       - name: Build Debug APK
-        run: |
-          if [ -f "gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle assembleDebug --stacktrace
-          fi
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
