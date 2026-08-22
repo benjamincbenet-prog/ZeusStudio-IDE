@@ -22,6 +22,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Prepare Signing Keystore
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "Decoding release signing key from GitHub Secret..."
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+          elif [ -f "debug.keystore.base64" ] && [ ! -f "my-upload-key.jks" ]; then
+            echo "Decoding bundled debug keystore as development fallback..."
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+          fi
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.RELEASE_KEYSTORE_BASE64 || secrets.SIGNING_KEY }}
+
       - name: Build APKs
         run: |
           if [ -f "gradlew" ]; then
@@ -30,6 +43,10 @@ jobs:
           else
             gradle assembleDebug assembleRelease --stacktrace || gradle assemble --stacktrace
           fi
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'android' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'android' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

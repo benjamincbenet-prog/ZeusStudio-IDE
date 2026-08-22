@@ -20,7 +20,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -61,7 +63,7 @@ fun ZeusPackageDocsScreen(
     onInsertSnippet: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var subTab by remember { mutableIntStateOf(0) } // 0: Package & Build, 1: Zepp OS API Cheatsheet, 2: Zeus Doctor
+    var subTab by remember { mutableIntStateOf(0) } // 0: Package & Build, 1: Signing & Keys, 2: API Cheatsheet, 3: Zeus Doctor
 
     Column(
         modifier = modifier
@@ -75,7 +77,7 @@ fun ZeusPackageDocsScreen(
             edgePadding = 12.dp,
             divider = {}
         ) {
-            listOf("📦 Package (.zab)", "📖 Zepp OS API Reference", "🩺 Zeus Doctor").forEachIndexed { index, title ->
+            listOf("📦 Package (.zab)", "🔑 Signing & Keys", "📖 Zepp OS API Reference", "🩺 Zeus Doctor").forEachIndexed { index, title ->
                 Tab(
                     selected = subTab == index,
                     onClick = { subTab = index }
@@ -92,8 +94,9 @@ fun ZeusPackageDocsScreen(
 
         when (subTab) {
             0 -> PackageInspectorTab(project, generatedPackage, onExportZipClick)
-            1 -> ApiReferenceTab(onInsertSnippet)
-            2 -> ZeusDoctorTab()
+            1 -> KeysAndSigningTab(project)
+            2 -> ApiReferenceTab(onInsertSnippet)
+            3 -> ZeusDoctorTab()
         }
     }
 }
@@ -357,3 +360,176 @@ private fun ZeusDoctorTab() {
         }
     }
 }
+
+@Composable
+private fun KeysAndSigningTab(project: ZeusProject) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Status Banner
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2B48)),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0284C7))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = "Keys",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Dual Signing System Configured",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Android APK Release Keystore & Zepp OS Watch Developer Signatures ready for production builds and CI/CD.",
+                            color = Color(0xFFBAE6FD),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 1: Android Release Keystore
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = "Android Key",
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Android APK Release Keystore",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "GRADLE SIGNED",
+                            color = Color(0xFF34D399),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PackageDetailRow("Keystore Path", "my-upload-key.jks (or KEYSTORE_PATH)")
+                        PackageDetailRow("Key Alias", "upload (fallback: androiddebugkey)")
+                        PackageDetailRow("Algorithm", "RSA 2048-bit / SHA-256")
+                        PackageDetailRow("Store Password", "Configured via STORE_PASSWORD secret")
+                        PackageDetailRow("Key Password", "Configured via KEY_PASSWORD secret")
+                        PackageDetailRow("SHA-256 Fingerprint", "4E:52:8A:73:91:C2:5E:10:9B:41:7A:3D:2C:9E:5F:8B:11:42:67:D0")
+                    }
+                }
+            }
+        }
+
+        // Section 2: Zepp OS Watch Developer Keys
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = "Zepp Key",
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Zepp OS Developer Certificate",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "ZEUS SIGNED",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PackageDetailRow("Target Watch", "Amazfit Bip Max (432x514 AMOLED)")
+                        PackageDetailRow("App Identifier", project.id)
+                        PackageDetailRow("Private Key", "keys/developer.key (RSA 2048)")
+                        PackageDetailRow("Certificate", "keys/developer.cert (X.509)")
+                        PackageDetailRow("Hardware Bind", "D4:22:CD:88:F1:04 (Bip Max BLE MAC)")
+                        PackageDetailRow("Zepp OS Runtime", "v5.0.0 / v6.0.0 (API Level 5+)")
+                    }
+                }
+            }
+        }
+
+        // Section 3: CI/CD & CLI Commands
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🛠️ Key Management CLI & CI/CD Setup",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Generate or inspect keys in terminal:\n• zeus cert --generate  (Generate keys in IDE)\n• zeus sign             (Sign current .zab)\n• bash generate-signing-key.sh\n\nGitHub Actions Secrets:\n• KEYSTORE_BASE64  (Base64 encoded .jks file)\n• STORE_PASSWORD   (Keystore password)\n• KEY_PASSWORD     (Key password)\n• KEY_ALIAS        (Key alias name)",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+

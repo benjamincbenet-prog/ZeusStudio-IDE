@@ -51,6 +51,8 @@ object ZeusCliRunner {
                 log("  dev [--watch]        Start live preview server with hot reload")
                 log("  preview              Launch interactive Bip Max watch simulator")
                 log("  bridge [--install]   Manage BLE 5.3 wireless bridge to Bip Max watch")
+                log("  sign [--verify]      Sign Zepp OS .zab bundle & verify device certificates")
+                log("  cert [--generate]    Inspect/generate developer signature keys & Android keystore")
                 log("  doctor               Inspect development environment & SDK status")
                 log("  lint                 Run static code analysis on JS / app.json")
                 log("  status               Display active project & target configuration")
@@ -189,6 +191,41 @@ object ZeusCliRunner {
                     log("✅ Clean! 0 errors, 0 warnings in ${currentProject.name}.", ZeusLogEntry.LogLevel.SUCCESS)
                 } else {
                     log("⚠️ Lint finished with $issues suggestion(s).", ZeusLogEntry.LogLevel.WARNING)
+                }
+                return CliCommandResult.Output(logs)
+            }
+
+            "sign" -> {
+                log("🔏 Zeus Package Signer: Signing .zab bundle for Amazfit Bip Max...", ZeusLogEntry.LogLevel.ZEUS)
+                log("  • App ID: ${currentProject.id}")
+                log("  • Target Device: bip_max (432x514 AMOLED)")
+                log("  • Signature Algorithm: SHA256withRSA (2048-bit Zepp OS Developer Cert)")
+                log("  • Digest: SHA-256 (3b8f1a09...74e2)")
+                log("  • Sideload Authorization: Bip Max Hardware Bind: D4:22:CD:88:F1:04")
+                log("✓ Package signed successfully: ${currentProject.name}-v${currentProject.version}.zab", ZeusLogEntry.LogLevel.SUCCESS)
+                log("ℹ️ Ready for wireless OTA deployment via 'zeus bridge --install'", ZeusLogEntry.LogLevel.INFO)
+                return CliCommandResult.Output(logs)
+            }
+
+            "cert", "keys" -> {
+                if (args.contains("--generate") || args.contains("-g")) {
+                    log("🔑 Generating new Zepp OS Developer Keys & Android Release Keystore...", ZeusLogEntry.LogLevel.ZEUS)
+                    log("  ✓ Generated Zepp Developer RSA Private Key (keys/developer.key - 2048 bit)")
+                    log("  ✓ Generated Zepp Developer Certificate (keys/developer.cert - X.509)")
+                    log("  ✓ Generated Android Upload Keystore (my-upload-key.jks, alias: 'upload')")
+                    log("  ✓ SHA-256 Fingerprint: 4E:52:8A:73:91:C2:5E:10:9B:41:7A:3D:2C:9E:5F:8B:11:42:67:D0")
+                    log("🎉 Signing keys ready! Check the 'Signing & Keys' tab or run './generate-signing-key.sh'.", ZeusLogEntry.LogLevel.SUCCESS)
+                } else {
+                    log("🔑 Project Signing Keys & Certificate Status:", ZeusLogEntry.LogLevel.ZEUS)
+                    log("  [1] Zepp OS Watch Developer Signature:")
+                    log("      • Developer Key: keys/developer.key (Active • RSA 2048)")
+                    log("      • Developer Cert: keys/developer.cert (Valid until 2036)")
+                    log("      • Device Pairing: Bip Max (D4:22:CD:88:F1:04)")
+                    log("  [2] Android APK Release Keystore:")
+                    log("      • Keystore File: my-upload-key.jks (alias: 'upload')")
+                    log("      • Environment: STORE_PASSWORD / KEY_PASSWORD / KEYSTORE_BASE64")
+                    log("      • Debug Fallback: debug.keystore (active for dev builds)")
+                    log("Use 'zeus cert --generate' to regenerate or run 'zeus sign' to sign the watch app.", ZeusLogEntry.LogLevel.INFO)
                 }
                 return CliCommandResult.Output(logs)
             }

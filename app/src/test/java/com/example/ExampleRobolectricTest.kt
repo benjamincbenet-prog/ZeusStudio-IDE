@@ -44,5 +44,10 @@ class ExampleRobolectricTest {
     assertTrue(helpResult is CliCommandResult.Output)
     val logs = (helpResult as CliCommandResult.Output).logs
     assertTrue(logs.any { it.message.contains("Zeus CLI") })
+
+    val signResult = ZeusCliRunner.execute("zeus sign", project, isDevRunning = false, isBleConnected = false)
+    assertTrue(signResult is CliCommandResult.Output)
+    val signLogs = (signResult as CliCommandResult.Output).logs
+    assertTrue(signLogs.any { it.message.contains("signed successfully") })
   }
 }
