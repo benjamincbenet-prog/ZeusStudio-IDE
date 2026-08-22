@@ -1,19 +1,15 @@
-name: Build Android APKs
+name: Build ZeusStudio-IDE
 
 on:
   push:
     branches:
       - main
       - master
-    paths-ignore:
-      - "**.md"
 
   pull_request:
     branches:
       - main
       - master
-    paths-ignore:
-      - "**.md"
 
   workflow_dispatch:
     inputs:
@@ -43,15 +39,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
+
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
-      # Java
-      # ------------------------------------------------------------
+
+      # ============================================================
+      # JAVA 17
+      # ============================================================
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -59,36 +59,41 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      # ------------------------------------------------------------
-      # Determine Gradle version from the repository's wrapper
-      # properties.
+
+      # ============================================================
+      # DETERMINE GRADLE VERSION
       #
-      # gradle/wrapper/gradle-wrapper.properties is intentionally
-      # the source of truth even when gradlew is not committed.
-      # ------------------------------------------------------------
+      # The repository's gradle-wrapper.properties is the source
+      # of truth. We do NOT configure the Android project here.
+      # ============================================================
+
       - name: Determine Gradle version
         id: gradle_version
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ ! -f "gradle/wrapper/gradle-wrapper.properties" ]; then
-            echo "::error::gradle/wrapper/gradle-wrapper.properties is missing."
+          PROPERTIES="gradle/wrapper/gradle-wrapper.properties"
+
+          if [ ! -f "$PROPERTIES" ]; then
+            echo "::error::$PROPERTIES does not exist."
             exit 1
           fi
+
+          echo "=== gradle-wrapper.properties ==="
+          cat "$PROPERTIES"
 
           DISTRIBUTION_URL="$(
-            sed -n 's/^distributionUrl=//p' \
-              gradle/wrapper/gradle-wrapper.properties
+            sed -n 's/^distributionUrl=//p' "$PROPERTIES"
           )"
 
+          # Gradle properties files escape '=' characters.
+          DISTRIBUTION_URL="${DISTRIBUTION_URL//\\=/=}"
+
           if [ -z "$DISTRIBUTION_URL" ]; then
-            echo "::error::distributionUrl is missing from gradle-wrapper.properties."
+            echo "::error::distributionUrl is missing."
             exit 1
           fi
-
-          # Decode the escaped '=' used in Gradle's properties file.
-          DISTRIBUTION_URL="${DISTRIBUTION_URL//\\=/=}"
 
           GRADLE_VERSION="$(
             printf '%s\n' "$DISTRIBUTION_URL" |
@@ -96,141 +101,309 @@ jobs:
           )"
 
           if [ -z "$GRADLE_VERSION" ]; then
-            echo "::error::Unable to determine Gradle version from distributionUrl."
-            echo "distributionUrl=$DISTRIBUTION_URL"
+            echo "::error::Unable to determine Gradle version."
+            echo "URL: $DISTRIBUTION_URL"
             exit 1
           fi
 
-          echo "Gradle version from wrapper properties: $GRADLE_VERSION"
+          echo "Gradle version: $GRADLE_VERSION"
+
           echo "gradle_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
 
-      # ------------------------------------------------------------
-      # Install the Gradle version specified by the repository.
-      #
-      # This is only the bootstrap Gradle. Once gradlew is generated,
-      # all actual builds use ./gradlew.
-      # ------------------------------------------------------------
-      - name: Set up bootstrap Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ steps.gradle_version.outputs.gradle_version }}
 
-      # ------------------------------------------------------------
-      # Generate the wrapper when it is not committed.
-      # ------------------------------------------------------------
+      # ============================================================
+      # BOOTSTRAP GRADLE WRAPPER
+      #
+      # IMPORTANT:
+      #
+      # We intentionally DO NOT run:
+      #
+      #   gradle wrapper
+      #
+      # from the ZeusStudio project.
+      #
+      # That would configure :app and currently trigger the
+      # AGP/Kotlin/KSP problem before the wrapper is generated.
+      #
+      # Instead, we download Gradle directly and generate the
+      # wrapper inside a completely isolated temporary project.
+      # ============================================================
+
       - name: Bootstrap Gradle wrapper
         shell: bash
+        env:
+          GRADLE_VERSION: ${{ steps.gradle_version.outputs.gradle_version }}
         run: |
           set -euo pipefail
 
-          if [ -f "./gradlew" ]; then
+          if [ -f "./gradlew" ] &&
+             [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
+
             echo "Gradle wrapper already exists."
-          else
-            echo "gradlew is missing."
-            echo "Generating Gradle wrapper..."
 
-            gradle wrapper \
-              --gradle-version "${{ steps.gradle_version.outputs.gradle_version }}"
+            chmod +x ./gradlew
 
-            if [ ! -f "./gradlew" ]; then
-              echo "::error::Gradle wrapper generation failed."
-              exit 1
-            fi
+            echo
+            echo "=== Existing Gradle wrapper ==="
+            ./gradlew --version
+
+            exit 0
           fi
 
-          chmod +x ./gradlew
+          echo "Gradle wrapper is missing."
+          echo "Creating wrapper without configuring ZeusStudio..."
+
+          TMP_DIR="$(mktemp -d)"
+
+          trap 'rm -rf "$TMP_DIR"' EXIT
+
+          GRADLE_ZIP="$TMP_DIR/gradle-${GRADLE_VERSION}-bin.zip"
+          GRADLE_HOME="$TMP_DIR/gradle-${GRADLE_VERSION}"
+          WRAPPER_PROJECT="$TMP_DIR/wrapper-project"
 
           echo
-          echo "=== Gradle wrapper ==="
+          echo "Temporary directory:"
+          echo "$TMP_DIR"
+
+          # --------------------------------------------------------
+          # Download official Gradle binary distribution.
+          # --------------------------------------------------------
+
+          echo
+          echo "Downloading Gradle ${GRADLE_VERSION}..."
+
+          curl \
+            --fail \
+            --show-error \
+            --location \
+            --retry 5 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            --output "$GRADLE_ZIP" \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+
+          # --------------------------------------------------------
+          # Extract Gradle.
+          # --------------------------------------------------------
+
+          echo
+          echo "Extracting Gradle..."
+
+          unzip -q "$GRADLE_ZIP" -d "$TMP_DIR"
+
+          if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+            echo "::error::Downloaded Gradle executable was not found."
+            exit 1
+          fi
+
+          echo
+          echo "=== Bootstrap Gradle ==="
+          "$GRADLE_HOME/bin/gradle" --version
+
+          # --------------------------------------------------------
+          # Create an isolated Gradle project.
+          #
+          # This project has NO relationship to ZeusStudio.
+          # --------------------------------------------------------
+
+          echo
+          echo "Creating isolated wrapper project..."
+
+          mkdir -p "$WRAPPER_PROJECT"
+
+          cat > "$WRAPPER_PROJECT/settings.gradle" <<'EOF'
+          rootProject.name = 'zeusstudio-wrapper-bootstrap'
+          EOF
+
+          cat > "$WRAPPER_PROJECT/build.gradle" <<'EOF'
+          /*
+           * This build exists solely to generate the Gradle Wrapper.
+           *
+           * It intentionally contains no Android plugins,
+           * Kotlin plugins, KSP plugins, dependencies,
+           * repositories, or references to ZeusStudio.
+           */
+          EOF
+
+          cd "$WRAPPER_PROJECT"
+
+          # --------------------------------------------------------
+          # Generate wrapper.
+          # --------------------------------------------------------
+
+          echo
+          echo "Generating Gradle wrapper..."
+
+          "$GRADLE_HOME/bin/gradle" wrapper \
+            --gradle-version "$GRADLE_VERSION" \
+            --distribution-type bin \
+            --no-daemon \
+            --stacktrace
+
+          # --------------------------------------------------------
+          # Verify generated files.
+          # --------------------------------------------------------
+
+          echo
+          echo "=== Generated wrapper ==="
+
+          find . -maxdepth 3 -type f -print
+
+          if [ ! -f "gradlew" ]; then
+            echo "::error::gradlew was not generated."
+            exit 1
+          fi
+
+          if [ ! -f "gradlew.bat" ]; then
+            echo "::error::gradlew.bat was not generated."
+            exit 1
+          fi
+
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "::error::gradle-wrapper.jar was not generated."
+            exit 1
+          fi
+
+          if [ ! -f "gradle/wrapper/gradle-wrapper.properties" ]; then
+            echo "::error::gradle-wrapper.properties was not generated."
+            exit 1
+          fi
+
+          # --------------------------------------------------------
+          # Copy wrapper into ZeusStudio.
+          # --------------------------------------------------------
+
+          echo
+          echo "Installing wrapper into ZeusStudio..."
+
+          cp gradlew "$GITHUB_WORKSPACE/gradlew"
+          cp gradlew.bat "$GITHUB_WORKSPACE/gradlew.bat"
+
+          mkdir -p "$GITHUB_WORKSPACE/gradle/wrapper"
+
+          cp \
+            gradle/wrapper/gradle-wrapper.jar \
+            "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar"
+
+          chmod +x "$GITHUB_WORKSPACE/gradlew"
+
+          cd "$GITHUB_WORKSPACE"
+
+          echo
+          echo "=== ZeusStudio wrapper files ==="
+
+          ls -lh \
+            gradlew \
+            gradlew.bat \
+            gradle/wrapper/gradle-wrapper.jar \
+            gradle/wrapper/gradle-wrapper.properties
+
+          # --------------------------------------------------------
+          # Verify wrapper WITHOUT running an Android task.
+          # --version causes Gradle to start but does not build the
+          # Android project.
+          # --------------------------------------------------------
+
+          echo
+          echo "=== Generated ZeusStudio Gradle wrapper ==="
+
           ./gradlew --version
 
-      # ------------------------------------------------------------
-      # Display the actual project toolchain.
-      # This makes future compiler/plugin mismatches immediately
-      # visible in the Actions log.
-      # ------------------------------------------------------------
-      - name: Inspect Android build toolchain
+
+      # ============================================================
+      # GRADLE ACTIONS
+      #
+      # At this point the wrapper exists, so setup-gradle can safely
+      # configure Gradle caching/CI integration.
+      # ============================================================
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+
+      # ============================================================
+      # TOOLCHAIN DIAGNOSTICS
+      # ============================================================
+
+      - name: Inspect build toolchain
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "=== Java ==="
+          echo "========================================"
+          echo "Java"
+          echo "========================================"
+
           java -version
 
           echo
-          echo "=== Gradle ==="
+          echo "========================================"
+          echo "Gradle"
+          echo "========================================"
+
           ./gradlew --version
 
           echo
-          echo "=== Gradle wrapper properties ==="
+          echo "========================================"
+          echo "Gradle Wrapper Properties"
+          echo "========================================"
+
           cat gradle/wrapper/gradle-wrapper.properties
 
           echo
-          echo "=== Version catalog ==="
+          echo "========================================"
+          echo "Version Catalog"
+          echo "========================================"
 
           if [ -f "gradle/libs.versions.toml" ]; then
-            grep -E \
-              '^(agp|kotlin|googleDevtoolsKsp|composeBom|androidxComposeBom)[[:space:]]*=' \
-              gradle/libs.versions.toml || true
+            cat gradle/libs.versions.toml
           fi
 
-      # ------------------------------------------------------------
-      # Create debug keystore if the project doesn't already have one.
-      # ------------------------------------------------------------
-      - name: Prepare debug keystore
-        shell: bash
-        run: |
-          set -euo pipefail
 
-          if [ -f "debug.keystore" ]; then
-            echo "Using existing debug.keystore."
-            exit 0
-          fi
+      # ============================================================
+      # GRADLE PROJECT VALIDATION
+      #
+      # This is deliberately separate from the wrapper bootstrap.
+      # If this fails, we now know the wrapper itself is working.
+      # ============================================================
 
-          if [ -f "debug.keystore.base64" ]; then
-            echo "Decoding debug.keystore.base64..."
-            base64 --decode debug.keystore.base64 > debug.keystore
-            exit 0
-          fi
+      - name: Validate Gradle project
+        run: ./gradlew tasks --stacktrace
 
-          echo "Generating debug keystore..."
 
-          keytool -genkeypair \
-            -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+      # ============================================================
+      # UNIT TESTS
+      # ============================================================
 
-      # ------------------------------------------------------------
-      # Clean once before compilation.
-      # ------------------------------------------------------------
-      - name: Clean project
-        run: ./gradlew clean --stacktrace
-
-      # ------------------------------------------------------------
-      # Unit / Robolectric tests
-      # ------------------------------------------------------------
       - name: Run Debug Unit Tests
         if: >
           github.event_name != 'workflow_dispatch' ||
           github.event.inputs.build_type == 'all' ||
           github.event.inputs.build_type == 'debug'
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: |
+          ./gradlew testDebugUnitTest \
+            --stacktrace \
+            --warning-mode all
 
-      # ------------------------------------------------------------
-      # Debug APK
-      # ------------------------------------------------------------
+
+      # ============================================================
+      # DEBUG APK
+      # ============================================================
+
       - name: Build Debug APK
         if: >
           github.event_name != 'workflow_dispatch' ||
           github.event.inputs.build_type == 'all' ||
           github.event.inputs.build_type == 'debug'
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          ./gradlew assembleDebug \
+            --stacktrace \
+            --warning-mode all
+
+
+      # ============================================================
+      # UPLOAD DEBUG APK
+      # ============================================================
 
       - name: Upload Debug APK
         if: >
@@ -244,52 +417,28 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      # ------------------------------------------------------------
-      # Release signing preparation
-      # ------------------------------------------------------------
-      - name: Prepare release signing
-        if: >
-          github.event_name != 'workflow_dispatch' ||
-          github.event.inputs.build_type == 'all' ||
-          github.event.inputs.build_type == 'release'
-        shell: bash
-        env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          set -euo pipefail
 
-          if [ -n "${RELEASE_KEYSTORE_BASE64:-}" ]; then
-            echo "Using release keystore from GitHub Secret."
+      # ============================================================
+      # RELEASE APK
+      #
+      # This simply invokes the project's existing release
+      # configuration. We do not create or replace signing keys.
+      # ============================================================
 
-            printf '%s' "$RELEASE_KEYSTORE_BASE64" |
-              base64 --decode > "$GITHUB_WORKSPACE/release-key.jks"
-
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/release-key.jks" >> "$GITHUB_ENV"
-            echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-
-          else
-            echo "No release keystore secret supplied."
-
-            # Do not silently create a production signing key.
-            # The release build will only proceed if the project itself
-            # is configured for unsigned/debug-compatible release output.
-            echo "RELEASE_SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
-          fi
-
-      # ------------------------------------------------------------
-      # Release APK
-      # ------------------------------------------------------------
       - name: Build Release APK
         if: >
           github.event_name != 'workflow_dispatch' ||
           github.event.inputs.build_type == 'all' ||
           github.event.inputs.build_type == 'release'
-        run: ./gradlew assembleRelease --stacktrace
+        run: |
+          ./gradlew assembleRelease \
+            --stacktrace \
+            --warning-mode all
+
+
+      # ============================================================
+      # UPLOAD RELEASE APK
+      # ============================================================
 
       - name: Upload Release APK
         if: >
