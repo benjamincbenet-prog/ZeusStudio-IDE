@@ -22,18 +22,54 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Prepare Signing Keystore
+      - name: Auto-generate Keystores & Prepare Signing
         run: |
+          # 1. Ensure debug.keystore is present
+          if [ ! -f "debug.keystore" ]; then
+            if [ -f "debug.keystore.base64" ]; then
+              echo "Decoding debug.keystore from debug.keystore.base64..."
+              base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+            fi
+            if [ ! -f "debug.keystore" ]; then
+              echo "Generating fresh debug keystore..."
+              keytool -genkey -v -keystore debug.keystore \
+                -storepass android -alias androiddebugkey -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+
+          # 2. Check for custom secret or auto-generate release upload keystore
           if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
             echo "Decoding release signing key from GitHub Secret..."
             echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
             echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
-          elif [ -f "debug.keystore.base64" ] && [ ! -f "my-upload-key.jks" ]; then
-            echo "Decoding bundled debug keystore as development fallback..."
-            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD || 'android' }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || 'android' }}" >> $GITHUB_ENV
+          elif [ ! -f "my-upload-key.jks" ]; then
+            echo "Auto-generating release upload keystore (my-upload-key.jks)..."
+            keytool -genkeypair -v \
+              -keystore my-upload-key.jks \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "${STORE_PASS:-android}" \
+              -keypass "${KEY_PASS:-android}" \
+              -dname "CN=Zeus Developer, OU=Mobile, O=Zeus, L=San Francisco, ST=CA, C=US"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${STORE_PASS:-android}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KEY_PASS:-android}" >> $GITHUB_ENV
+          else
+            echo "Found existing my-upload-key.jks in workspace."
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${STORE_PASS:-android}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KEY_PASS:-android}" >> $GITHUB_ENV
           fi
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.RELEASE_KEYSTORE_BASE64 || secrets.SIGNING_KEY }}
+          STORE_PASS: ${{ secrets.STORE_PASSWORD || 'android' }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD || 'android' }}
 
       - name: Build APKs
         run: |

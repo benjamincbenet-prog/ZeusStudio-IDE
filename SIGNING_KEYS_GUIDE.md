@@ -34,18 +34,20 @@ keytool -genkeypair -v \
 
 ---
 
-## 2. GitHub Actions CI/CD Integration
+## 2. GitHub Actions CI/CD Integration (Automatic Keystore Generation)
 
-To automatically sign Release APKs in GitHub Actions (`build.yml` & `release-tag.yml`), configure these repository secrets:
+The GitHub Actions workflows (`build.yml` and `release-tag.yml`) **automatically generate** all required keystores (`debug.keystore` and `my-upload-key.jks`) dynamically if they do not exist:
+- **Zero-config builds**: Fresh repositories run and produce signed Debug and Release APK artifacts without requiring any setup or secrets.
+- **Custom production signing (Optional)**: If you provide GitHub repository secrets, the workflow uses your official production key instead:
 
-| Secret Name | Value Description |
+| Secret Name (Optional) | Value Description |
 |---|---|
-| `KEYSTORE_BASE64` | Base64 encoded contents of `my-upload-key.jks` (`base64 -w 0 my-upload-key.jks`) |
-| `STORE_PASSWORD` | Keystore password |
-| `KEY_PASSWORD` | Private key password |
-| `KEY_ALIAS` | Key alias (default: `upload`) |
+| `KEYSTORE_BASE64` | Base64 encoded contents of your custom `.jks` (`base64 -w 0 my-upload-key.jks`) |
+| `STORE_PASSWORD` | Keystore password (defaults to `android`) |
+| `KEY_PASSWORD` | Private key password (defaults to `android`) |
+| `KEY_ALIAS` | Key alias (defaults to `upload`) |
 
-The CI/CD workflow automatically decodes `KEYSTORE_BASE64` into `my-upload-key.jks` during execution. If no custom secret is provided, it safely signs with development keys.
+If no secrets are supplied, the workflow automatically uses `keytool` on the runner to generate standard 2048-bit RSA keys with 10,000 days validity and signs both debug and release APKs.
 
 ---
 
