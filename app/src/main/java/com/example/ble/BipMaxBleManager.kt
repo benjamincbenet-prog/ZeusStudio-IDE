@@ -20,7 +20,6 @@ import com.example.data.model.BipDevice
 import com.example.data.model.ConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,12 +29,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.Random
 
 class BipMaxBleManager(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
-    private var simulationJob: Job? = null
 
     private val bluetoothManager: BluetoothManager? =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -43,20 +40,24 @@ class BipMaxBleManager(private val context: Context) {
 
     private var activeGatt: BluetoothGatt? = null
 
-    private val _connectionState = MutableStateFlow(ConnectionState.CONNECTED)
+    private val _connectionState = MutableStateFlow(
+        if (bluetoothAdapter == null) ConnectionState.BLUETOOTH_UNAVAILABLE
+        else if (!bluetoothAdapter.isEnabled) ConnectionState.BLUETOOTH_DISABLED
+        else ConnectionState.DISCONNECTED
+    )
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     private val _discoveredDevices = MutableStateFlow<List<BipDevice>>(emptyList())
     val discoveredDevices: StateFlow<List<BipDevice>> = _discoveredDevices.asStateFlow()
 
-    private val _liveHeartRate = MutableStateFlow(72)
-    val liveHeartRate: StateFlow<Int> = _liveHeartRate.asStateFlow()
+    private val _liveHeartRate = MutableStateFlow<Int?>(null)
+    val liveHeartRate: StateFlow<Int?> = _liveHeartRate.asStateFlow()
 
-    private val _liveSteps = MutableStateFlow(7432)
-    val liveSteps: StateFlow<Int> = _liveSteps.asStateFlow()
+    private val _liveSteps = MutableStateFlow<Int?>(null)
+    val liveSteps: StateFlow<Int?> = _liveSteps.asStateFlow()
 
-    private val _liveBattery = MutableStateFlow(84)
-    val liveBattery: StateFlow<Int> = _liveBattery.asStateFlow()
+    private val _liveBattery = MutableStateFlow<Int?>(null)
+    val liveBattery: StateFlow<Int?> = _liveBattery.asStateFlow()
 
     private val _isCharging = MutableStateFlow(false)
     val isCharging: StateFlow<Boolean> = _isCharging.asStateFlow()
@@ -67,11 +68,9 @@ class BipMaxBleManager(private val context: Context) {
     private val _watchFaceProgress = MutableStateFlow<Float?>(null)
     val watchFaceProgress: StateFlow<Float?> = _watchFaceProgress.asStateFlow()
 
-    private val random = Random()
-
     init {
-        log("BipMax BLE Manager initialized. Protocol stack ready for Amazfit Bip Max.")
-        startLiveTelemetrySimulation()
+        log("BipMax BLE Manager initialized. Adapter available: ${bluetoothAdapter != null}.")
+        log("Initial state: ${_connectionState.value}")
     }
 
     private fun log(msg: String) {
@@ -105,42 +104,6 @@ class BipMaxBleManager(private val context: Context) {
             }
         }
 
-        // Add simulated/nearby Bip Max devices for testing
-        scope.launch {
-            delay(600)
-            val dev1 = BipDevice(
-                macAddress = "D4:F5:13:B9:A8:4C",
-                name = "Amazfit Bip Max",
-                model = "Bip Max (A2170)",
-                rssi = -54,
-                batteryPercent = 88,
-                isBonded = true,
-                isConnected = false,
-                isSimulated = true
-            )
-            val dev2 = BipDevice(
-                macAddress = "E1:3C:78:2A:90:1D",
-                name = "Amazfit Bip 5 Pro",
-                model = "Bip 5 (A2215)",
-                rssi = -72,
-                batteryPercent = 65,
-                isBonded = false,
-                isConnected = false,
-                isSimulated = true
-            )
-            val dev3 = BipDevice(
-                macAddress = "C8:A2:4E:91:BB:03",
-                name = "Amazfit Bip U",
-                model = "Bip U (A2017)",
-                rssi = -81,
-                batteryPercent = 42,
-                isBonded = false,
-                isConnected = false,
-                isSimulated = true
-            )
-            _discoveredDevices.value = listOf(dev1, dev2, dev3)
-            log("Discovered 3 Amazfit Bip devices nearby.")
-        }
     }
 
     @SuppressLint("MissingPermission")
@@ -242,9 +205,9 @@ class BipMaxBleManager(private val context: Context) {
             _connectionState.value = ConnectionState.SYNCING
             log("Initiating full telemetry sync with Bip Max...")
             delay(500)
-            log("Fetching Step counter accumulator (0x01)... [${_liveSteps.value} steps]")
+            log("Fetching Step counter accumulator (0x01)... [${_liveSteps.value ?: "--"} steps]")
             delay(400)
-            log("Fetching PPG Continuous Heart Rate buffer (0x15)... [${_liveHeartRate.value} bpm]")
+            log("Fetching PPG Continuous Heart Rate buffer (0x15)... [${_liveHeartRate.value ?: "--"} bpm]")
             delay(400)
             log("Fetching BioTracker SpO2 & Sleep stages...")
             delay(400)
@@ -284,26 +247,6 @@ class BipMaxBleManager(private val context: Context) {
             log("Pushing notification alert: [$appName] $title - $body")
             delay(200)
             log("Notification frame rendered on Bip Max 1.91\" display.")
-        }
-    }
-
-    private fun startLiveTelemetrySimulation() {
-        simulationJob?.cancel()
-        simulationJob = scope.launch {
-            while (true) {
-                delay(3000)
-                if (_connectionState.value == ConnectionState.CONNECTED) {
-                    // Small dynamic HR fluctuation
-                    val deltaHr = random.nextInt(5) - 2
-                    val newHr = (_liveHeartRate.value + deltaHr).coerceIn(62, 125)
-                    _liveHeartRate.value = newHr
-
-                    // Steps occasionally increment
-                    if (random.nextBoolean()) {
-                        _liveSteps.value += random.nextInt(8) + 2
-                    }
-                }
-            }
         }
     }
 }

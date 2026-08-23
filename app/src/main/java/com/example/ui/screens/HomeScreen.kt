@@ -45,15 +45,15 @@ fun HomeScreen(
     connectionState: ConnectionState,
     batteryPercent: Int,
     isCharging: Boolean,
-    liveSteps: Int,
-    liveHeartRate: Int,
+    liveSteps: Int?,
+    liveHeartRate: Int?,
     health: HealthMetricRecord?,
     onFindWatch: () -> Unit,
     onSyncNow: () -> Unit,
     onPairClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val steps = liveSteps
+    val steps = liveSteps ?: health?.steps ?: 0
     val stepGoal = health?.stepGoal ?: 10000
     val stepsProgress = (steps.toFloat() / stepGoal).coerceIn(0f, 1f)
 
@@ -137,7 +137,7 @@ fun HomeScreen(
         // Live PPG Heart Rate Pulse
         item {
             HeartRatePulseCard(
-                currentBpm = liveHeartRate,
+                currentBpm = liveHeartRate ?: health?.currentHeartRateBpm ?: 0,
                 restingBpm = health?.restingHeartRateBpm ?: 61,
                 maxBpm = health?.maxHeartRateBpm ?: 138,
                 minBpm = health?.minHeartRateBpm ?: 54

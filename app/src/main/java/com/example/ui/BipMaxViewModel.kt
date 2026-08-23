@@ -42,9 +42,9 @@ class BipMaxViewModel(application: Application) : AndroidViewModel(application) 
 
     val connectionState: StateFlow<ConnectionState> = bleManager.connectionState
     val discoveredDevices: StateFlow<List<BipDevice>> = bleManager.discoveredDevices
-    val liveHeartRate: StateFlow<Int> = bleManager.liveHeartRate
-    val liveSteps: StateFlow<Int> = bleManager.liveSteps
-    val liveBattery: StateFlow<Int> = bleManager.liveBattery
+    val liveHeartRate: StateFlow<Int?> = bleManager.liveHeartRate
+    val liveSteps: StateFlow<Int?> = bleManager.liveSteps
+    val liveBattery: StateFlow<Int?> = bleManager.liveBattery
     val isCharging: StateFlow<Boolean> = bleManager.isCharging
     val watchFaceProgress: StateFlow<Float?> = bleManager.watchFaceProgress
 
@@ -92,12 +92,14 @@ class BipMaxViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
-            // Keep active device battery synced with live telemetry
+            // Keep active device battery synced with live telemetry when a real value is available
             combine(liveBattery, isCharging) { battery, charging ->
                 Pair(battery, charging)
             }.collect { (battery, charging) ->
-                activeDevice.value?.let { dev ->
-                    dao.updateBattery(dev.macAddress, battery, charging, System.currentTimeMillis())
+                if (battery != null) {
+                    activeDevice.value?.let { dev ->
+                        dao.updateBattery(dev.macAddress, battery, charging, System.currentTimeMillis())
+                    }
                 }
             }
         }
@@ -146,8 +148,8 @@ class BipMaxViewModel(application: Application) : AndroidViewModel(application) 
         bleManager.syncTime {
             viewModelScope.launch {
                 val current = latestHealth.value
-                val updatedSteps = liveSteps.value
-                val updatedHr = liveHeartRate.value
+                val updatedSteps = liveSteps.value ?: current?.steps ?: 0
+                val updatedHr = liveHeartRate.value ?: current?.currentHeartRateBpm ?: 0
                 val newRecord = (current ?: HealthMetricRecord(
                     dateString = "Today",
                     steps = updatedSteps,
@@ -277,7 +279,7 @@ class BipMaxViewModel(application: Application) : AndroidViewModel(application) 
         val distance = _activeWorkoutDistanceKm.value
         val calories = _activeWorkoutCalories.value
         val type = _activeWorkoutType.value
-        val avgHr = liveHeartRate.value.coerceAtLeast(110)
+        val avgHr = liveHeartRate.value ?: 0
 
         val paceMinutes = if (distance > 0.05f) {
             val totalMin = duration / 60.0f

@@ -23,6 +23,8 @@ data class BipDevice(
 
 enum class ConnectionState {
     DISCONNECTED,
+    BLUETOOTH_DISABLED,
+    BLUETOOTH_UNAVAILABLE,
     SCANNING,
     CONNECTING,
     AUTHENTICATING,

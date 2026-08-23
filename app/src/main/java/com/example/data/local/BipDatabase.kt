@@ -5,7 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.AppNotificationRule
 import com.example.data.model.BipDevice
 import com.example.data.model.HealthMetricRecord
@@ -13,9 +12,6 @@ import com.example.data.model.VibrationPattern
 import com.example.data.model.WatchFace
 import com.example.data.model.WorkoutRecord
 import com.example.data.model.WorkoutType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Database(
     entities = [
@@ -42,20 +38,17 @@ abstract class BipDatabase : RoomDatabase() {
                     context.applicationContext,
                     BipDatabase::class.java,
                     "bip_max_companion.db"
-                ).addCallback(object : Callback() {
-                    override fun onCreate(db: SupportSQLiteDatabase) {
-                        super.onCreate(db)
-                        CoroutineScope(Dispatchers.IO).launch {
-                            populateInitialData(getInstance(context).bipDao())
-                        }
-                    }
-                }).build()
+                ).build()
                 INSTANCE = instance
                 instance
             }
         }
 
-        private suspend fun populateInitialData(dao: BipDao) {
+        /**
+         * Inserts demo/synthetic records into the database.
+         * Call this explicitly only when demo mode is desired; never called on production startup.
+         */
+        suspend fun populateDemoData(dao: BipDao) {
             // Initial Paired Bip Max Device
             val defaultDevice = BipDevice(
                 macAddress = "D4:F5:13:B9:A8:4C",
