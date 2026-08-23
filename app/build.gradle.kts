@@ -25,13 +25,6 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
-  val debugSigningProps = Properties().apply {
-    val propsFile = rootProject.file("keystore/debug-signing.properties")
-    if (propsFile.exists()) {
-      propsFile.inputStream().use { load(it) }
-    }
-  }
-
   val releaseSigningProps = Properties().apply {
     val propsFile = rootProject.file("keystore/release-signing.properties")
     if (propsFile.exists()) {
@@ -40,26 +33,6 @@ android {
   }
 
   signingConfigs {
-    create("debugConfig") {
-      val configuredStoreFile = debugSigningProps.getProperty("storeFile")
-      val debugStoreFile = when {
-        !configuredStoreFile.isNullOrBlank() -> rootProject.file(configuredStoreFile)
-        else -> rootProject.file("debug.keystore")
-      }
-
-      if (debugStoreFile.exists()) {
-        storeFile = debugStoreFile
-        storePassword = debugSigningProps.getProperty("storePassword", "android")
-        keyAlias = debugSigningProps.getProperty("keyAlias", "androiddebugkey")
-        keyPassword = debugSigningProps.getProperty("keyPassword", "android")
-      } else {
-        storeFile = File(System.getProperty("user.home"), ".android/debug.keystore")
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
-      }
-    }
-
     create("release") {
       val configuredStoreFile = releaseSigningProps.getProperty("storeFile")
       val releaseStoreFile = when {
@@ -88,10 +61,9 @@ android {
       signingConfig = if (hasReleaseSigning) {
         signingConfigs.getByName("release")
       } else {
-        signingConfigs.getByName("debugConfig")
+        null
       }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
