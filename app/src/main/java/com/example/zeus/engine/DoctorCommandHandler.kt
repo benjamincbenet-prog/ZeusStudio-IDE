@@ -53,15 +53,12 @@ internal object DoctorCommandHandler {
         }
 
         // 4. Build toolchain
-        // ZeusCompiler.compile returns isSuccess=false when no toolchain is configured.
-        val buildProbe = ZeusCompiler.compile(context.project)
-        checks += if (buildProbe.isSuccess) {
+        checks += if (ZeusCompiler.isToolchainConfigured()) {
             Check("Build toolchain", CheckStatus.PASS, "compiler ready")
         } else {
             Check(
                 "Build toolchain", CheckStatus.FAIL,
-                buildProbe.errors.firstOrNull()
-                    ?: "No Zepp OS build toolchain configured — set toolchain path in settings"
+                "No Zepp OS build toolchain configured — set toolchain path in settings"
             )
         }
 

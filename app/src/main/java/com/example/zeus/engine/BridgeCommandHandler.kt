@@ -146,7 +146,7 @@ internal object BridgeCommandHandler {
             isError = true
         )
         events += CommandEvent.Stream(
-            "This command will succeed once the transport layer is configured (BACKEND_NOT_CONFIGURED).",
+            "Remediation: configure the OTA transport layer (zeus-cli binary or companion service) in settings.",
             isError = true
         )
         events += CommandEvent.Completed(

@@ -15,6 +15,13 @@ data class CompilationResult(
 
 object ZeusCompiler {
 
+    /**
+     * Lightweight check for toolchain availability.
+     * Returns true only when a real build backend is configured and can produce artifacts.
+     * Currently always false — no real Zepp OS toolchain is bundled with the IDE.
+     */
+    fun isToolchainConfigured(): Boolean = false
+
     fun compile(project: ZeusProject, isRelease: Boolean = false): CompilationResult {
         val startTime = System.currentTimeMillis()
         val logs = mutableListOf<String>()
