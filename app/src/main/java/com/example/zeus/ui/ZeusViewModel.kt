@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeus.data.ZeusTemplatesRepository
 import com.example.zeus.engine.CliCommandResult
 import com.example.zeus.engine.CompilationResult
+import com.example.zeus.engine.DispatcherContext
 import com.example.zeus.engine.ZeusCliRunner
 import com.example.zeus.engine.ZeusCompiler
 import com.example.zeus.model.FileType
@@ -204,11 +205,23 @@ class ZeusViewModel : ViewModel() {
 
         addTerminalLog("zeus > $trimmed", ZeusLogEntry.LogLevel.ZEUS)
 
+        val state = _uiState.value
+        val context = DispatcherContext(
+            project = state.activeProject,
+            isBleConnected = state.isBleConnected,
+            connectedDeviceMac = state.connectedDeviceMac,
+            connectedDeviceName = state.connectedDeviceName,
+            // Bluetooth hardware/permission state is not yet surfaced in ZeusUiState;
+            // default to false so doctor/bridge report truthfully (not available).
+            isBluetoothEnabled = false,
+            isBluetoothAvailable = false,
+            hasBlePermissions = false,
+            lastBuildArtifact = state.generatedPackage
+        )
+
         val result = ZeusCliRunner.execute(
             commandLine = trimmed,
-            currentProject = _uiState.value.activeProject,
-            isDevRunning = _uiState.value.isDevServerRunning,
-            isBleConnected = _uiState.value.isBleConnected
+            context = context
         )
 
         when (result) {
