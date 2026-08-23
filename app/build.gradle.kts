@@ -51,6 +51,11 @@ android {
         storePassword = debugSigningProps.getProperty("storePassword", "android")
         keyAlias = debugSigningProps.getProperty("keyAlias", "androiddebugkey")
         keyPassword = debugSigningProps.getProperty("keyPassword", "android")
+      } else {
+        storeFile = signingConfigs.findByName("debug")?.storeFile ?: java.io.File(System.getProperty("user.home"), ".android/debug.keystore")
+        storePassword = debugSigningProps.getProperty("storePassword", "android")
+        keyAlias = debugSigningProps.getProperty("keyAlias", "androiddebugkey")
+        keyPassword = debugSigningProps.getProperty("keyPassword", "android")
       }
     }
 
