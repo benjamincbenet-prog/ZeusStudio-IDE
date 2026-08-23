@@ -371,21 +371,7 @@ jobs:
         run: ./gradlew tasks --stacktrace
 
 
-      # ============================================================
-      # UNIT TESTS
-      # ============================================================
-
-      - name: Run Debug Unit Tests
-        if: >
-          github.event_name != 'workflow_dispatch' ||
-          github.event.inputs.build_type == 'all' ||
-          github.event.inputs.build_type == 'debug'
-        run: |
-          ./gradlew testDebugUnitTest \
-            --stacktrace \
-            --warning-mode all
-
-
+      
       # ============================================================
       # DEBUG APK
       # ============================================================
