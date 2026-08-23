@@ -200,7 +200,7 @@ fun BipMaxWatchSimulator(
                     .border(2.5.dp, Color(0xFF475569), RoundedCornerShape(44.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                // Screen Glass Frame (320x380 ratio: ~0.842)
+                // Screen Glass Frame (432x514 ratio: ~0.84)
                 Box(
                     modifier = Modifier
                         .width(220.dp)

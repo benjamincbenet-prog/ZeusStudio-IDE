@@ -143,7 +143,7 @@ fun WatchFaceScreen(
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Amazfit Bip Max HD Display (1.91\" 320x380 px). Select a watch face to flash to your watch via BLE.",
+                                text = "Amazfit Bip Max HD AMOLED Display (2.07\" 432x514 px). Select a watch face to flash to your watch via BLE.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )

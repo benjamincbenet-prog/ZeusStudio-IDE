@@ -161,7 +161,7 @@ fun ZeusBleBridgeScreen(
                         }
                         Column {
                             Text("Target Framebuffer", color = Color(0xFF64748B), fontSize = 10.sp)
-                            Text("320x380 px", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("432x514 px", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

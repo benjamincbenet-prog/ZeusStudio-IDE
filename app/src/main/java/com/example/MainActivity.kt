@@ -136,7 +136,7 @@ fun ZeusIdeApp(viewModel: ZeusViewModel) {
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "${uiState.activeProject.name} (320x380)",
+                                text = "${uiState.activeProject.name} (432x514)",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -153,7 +153,7 @@ fun ZeusIdeApp(viewModel: ZeusViewModel) {
                                     text = {
                                         Column {
                                             Text(project.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                            Text("${project.template.title} • 320x380", color = Color(0xFF38BDF8), fontSize = 10.sp)
+                                            Text("${project.template.title} • 432x514", color = Color(0xFF38BDF8), fontSize = 10.sp)
                                         }
                                     },
                                     onClick = {
