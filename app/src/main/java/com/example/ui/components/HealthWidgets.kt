@@ -234,13 +234,15 @@ fun BipHeroDeviceCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = when (connectionState) {
-                                    ConnectionState.CONNECTED -> "Connected (BLE)"
-                                    ConnectionState.CONNECTING -> "Connecting..."
-                                    ConnectionState.AUTHENTICATING -> "Auth Handshake..."
-                                    ConnectionState.SYNCING -> "Syncing Telemetry..."
-                                    ConnectionState.SCANNING -> "Scanning..."
-                                    ConnectionState.DISCONNECTED -> "Disconnected"
-                                },
+    ConnectionState.CONNECTED -> "Connected (BLE)"
+    ConnectionState.CONNECTING -> "Connecting..."
+    ConnectionState.AUTHENTICATING -> "Auth Handshake..."
+    ConnectionState.SYNCING -> "Syncing Telemetry..."
+    ConnectionState.SCANNING -> "Scanning..."
+    ConnectionState.DISCONNECTED -> "Disconnected"
+    ConnectionState.BLUETOOTH_DISABLED -> "Bluetooth Off"
+    ConnectionState.BLUETOOTH_UNAVAILABLE -> "Bluetooth Unsupported"
+},
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
