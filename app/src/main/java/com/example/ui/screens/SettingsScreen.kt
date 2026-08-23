@@ -116,7 +116,7 @@ fun SettingsScreen(
                     SpecItem(label = "Display", value = "2.07\" HD AMOLED (432x514 px, 302 PPI)")
                     SpecItem(label = "Biometric Sensor", value = "BioTracker™ 5.0 PPG Optical Sensor")
                     SpecItem(label = "Water Resistance", value = "5 ATM (50 meters water-resistant)")
-                    SpecItem(label = "Battery Capacity", value = "550 mAh (Up to 14 days typical)")
+                    SpecItem(label = "Battery Capacity", value = "550 mAh (Up to 20 days typical)")
                     SpecItem(label = "Firmware OS", value = "${device?.firmwareVersion ?: "v1.4.2.18"} (Zepp OS Core)")
                     SpecItem(label = "Hardware Revision", value = device?.hardwareRevision ?: "V2.1 Nordic nRF52840")
                 }
