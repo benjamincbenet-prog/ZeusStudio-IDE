@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeus.data.ZeusTemplatesRepository
 import com.example.zeus.engine.CliCommandResult
 import com.example.zeus.engine.CompilationResult
+import com.example.zeus.engine.DispatcherContext
 import com.example.zeus.engine.ZeusCliRunner
 import com.example.zeus.engine.ZeusCompiler
 import com.example.zeus.model.FileType
@@ -41,7 +42,13 @@ data class ZeusUiState(
     val showNewProjectDialog: Boolean = false,
     val showApiReferenceDialog: Boolean = false,
     val showExportPackageDialog: Boolean = false,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    /** Whether the host device has a Bluetooth adapter. Updated by the UI/Activity. */
+    val isBluetoothAvailable: Boolean = false,
+    /** Whether the Bluetooth adapter is currently enabled. Updated by the UI/Activity. */
+    val isBluetoothEnabled: Boolean = false,
+    /** Whether BLUETOOTH_SCAN and BLUETOOTH_CONNECT runtime permissions are granted. Updated by the UI/Activity. */
+    val hasBlePermissions: Boolean = false
 )
 
 class ZeusViewModel : ViewModel() {
@@ -204,11 +211,21 @@ class ZeusViewModel : ViewModel() {
 
         addTerminalLog("zeus > $trimmed", ZeusLogEntry.LogLevel.ZEUS)
 
+        val state = _uiState.value
+        val context = DispatcherContext(
+            project = state.activeProject,
+            isBleConnected = state.isBleConnected,
+            connectedDeviceMac = state.connectedDeviceMac,
+            connectedDeviceName = state.connectedDeviceName,
+            isBluetoothEnabled = state.isBluetoothEnabled,
+            isBluetoothAvailable = state.isBluetoothAvailable,
+            hasBlePermissions = state.hasBlePermissions,
+            lastBuildArtifact = state.generatedPackage
+        )
+
         val result = ZeusCliRunner.execute(
             commandLine = trimmed,
-            currentProject = _uiState.value.activeProject,
-            isDevRunning = _uiState.value.isDevServerRunning,
-            isBleConnected = _uiState.value.isBleConnected
+            context = context
         )
 
         when (result) {
@@ -261,6 +278,20 @@ class ZeusViewModel : ViewModel() {
                 )
             }
             addTerminalLog("  [FOUND] Amazfit Bip Max (ID: A2286, RSSI: -52 dBm)", ZeusLogEntry.LogLevel.BLE)
+        }
+    }
+
+    /**
+     * Called by the Activity/UI when the host Bluetooth state or runtime permissions change.
+     * This feeds real values into [DispatcherContext] so doctor/bridge commands report truthfully.
+     */
+    fun updateBluetoothState(isAvailable: Boolean, isEnabled: Boolean, hasPermissions: Boolean) {
+        _uiState.update {
+            it.copy(
+                isBluetoothAvailable = isAvailable,
+                isBluetoothEnabled = isEnabled,
+                hasBlePermissions = hasPermissions
+            )
         }
     }
 

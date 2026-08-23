@@ -11,9 +11,101 @@ sealed class CliCommandResult {
     data class ClearTerminal(val welcomeLogs: List<ZeusLogEntry>) : CliCommandResult()
 }
 
+/** Convert a [CommandResult] into the legacy [CliCommandResult] so existing call-sites continue to work. */
+internal fun CommandResult.toCliResult(updatedProject: ZeusProject? = null): CliCommandResult {
+    val logs = events.mapNotNull { event ->
+        when (event) {
+            is CommandEvent.Stream -> ZeusLogEntry(
+                level = if (event.isError) ZeusLogEntry.LogLevel.ERROR else ZeusLogEntry.LogLevel.INFO,
+                tag = "zeus",
+                message = event.message
+            )
+            is CommandEvent.Completed -> ZeusLogEntry(
+                level = if (event.exitCode == 0) ZeusLogEntry.LogLevel.SUCCESS else ZeusLogEntry.LogLevel.ERROR,
+                tag = "zeus",
+                message = event.summary
+            )
+            else -> null
+        }
+    }
+    return CliCommandResult.Output(logs, updatedProject)
+}
+
 object ZeusCliRunner {
 
+    /**
+     * Execute a command with full runtime context (Bluetooth state, permissions, etc.).
+     * Commands `build`, `bridge`, and `doctor` are routed to real handlers via [CommandDispatcher].
+     */
     fun execute(
+        commandLine: String,
+        context: DispatcherContext
+    ): CliCommandResult {
+        val trimmed = commandLine.trim()
+        if (trimmed.isEmpty()) return CliCommandResult.Output(emptyList())
+
+        val tokens = parseCommandLine(trimmed)
+        val first = tokens.getOrNull(0)?.lowercase() ?: ""
+        val cmd = if (first == "zeus") tokens.getOrNull(1)?.lowercase() ?: "" else first
+
+        // Route real commands through the dispatcher.
+        if (cmd in setOf("build", "bridge", "doctor")) {
+            val result = CommandDispatcher.dispatch(trimmed, context)
+            // Preserve updatedProject for build (marks last build timestamp / success).
+            val updatedProject = if (cmd == "build") {
+                context.project.copy(
+                    lastBuiltTimestamp = System.currentTimeMillis(),
+                    lastBuildSuccess = result.exitCode == 0
+                )
+            } else null
+            return result.toCliResult(updatedProject)
+        }
+
+        // Delegate remaining commands to the legacy implementation.
+        return executeLegacy(
+            commandLine = trimmed,
+            currentProject = context.project,
+            isDevRunning = false, // not tracked in context; legacy path ignores it for non-dev commands
+            isBleConnected = context.isBleConnected
+        )
+    }
+
+    /**
+     * Legacy entry point retained for backward compatibility. Commands `build`, `bridge`,
+     * and `doctor` are routed through [CommandDispatcher] with a minimal context so they
+     * always use real handlers. All other commands fall through to the legacy implementation.
+     */
+    fun execute(
+        commandLine: String,
+        currentProject: ZeusProject,
+        isDevRunning: Boolean,
+        isBleConnected: Boolean
+    ): CliCommandResult {
+        val trimmed = commandLine.trim()
+        if (trimmed.isEmpty()) return CliCommandResult.Output(emptyList())
+
+        val tokens = parseCommandLine(trimmed)
+        val first = tokens.getOrNull(0)?.lowercase() ?: ""
+        val cmd = if (first == "zeus") tokens.getOrNull(1)?.lowercase() ?: "" else first
+
+        if (cmd in setOf("build", "bridge", "doctor")) {
+            val context = DispatcherContext(
+                project = currentProject,
+                isBleConnected = isBleConnected,
+                connectedDeviceMac = null,
+                connectedDeviceName = null,
+                isBluetoothEnabled = false,
+                isBluetoothAvailable = false,
+                hasBlePermissions = false,
+                lastBuildArtifact = null
+            )
+            return execute(trimmed, context)
+        }
+
+        return executeLegacy(trimmed, currentProject, isDevRunning, isBleConnected)
+    }
+
+    private fun executeLegacy(
         commandLine: String,
         currentProject: ZeusProject,
         isDevRunning: Boolean,
