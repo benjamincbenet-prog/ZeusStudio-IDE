@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -52,7 +53,7 @@ android {
         keyAlias = debugSigningProps.getProperty("keyAlias", "androiddebugkey")
         keyPassword = debugSigningProps.getProperty("keyPassword", "android")
       } else {
-        storeFile = java.io.File(System.getProperty("user.home"), ".android/debug.keystore")
+        storeFile = File(System.getProperty("user.home"), ".android/debug.keystore")
         storePassword = "android"
         keyAlias = "androiddebugkey"
         keyPassword = "android"
