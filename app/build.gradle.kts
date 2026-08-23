@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
@@ -23,22 +24,49 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  val debugSigningProps = Properties().apply {
+    val propsFile = rootProject.file("keystore/debug-signing.properties")
+    if (propsFile.exists()) {
+      propsFile.inputStream().use { load(it) }
+    }
+  }
+
+  val releaseSigningProps = Properties().apply {
+    val propsFile = rootProject.file("keystore/release-signing.properties")
+    if (propsFile.exists()) {
+      propsFile.inputStream().use { load(it) }
+    }
+  }
+
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val keystoreFile = file(keystorePath)
-      if (keystoreFile.exists()) {
-        storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
+    create("debugConfig") {
+      val configuredStoreFile = debugSigningProps.getProperty("storeFile")
+      val debugStoreFile = when {
+        !configuredStoreFile.isNullOrBlank() -> rootProject.file(configuredStoreFile)
+        else -> rootProject.file("debug.keystore")
+      }
+
+      if (debugStoreFile.exists()) {
+        storeFile = debugStoreFile
+        storePassword = debugSigningProps.getProperty("storePassword", "android")
+        keyAlias = debugSigningProps.getProperty("keyAlias", "androiddebugkey")
+        keyPassword = debugSigningProps.getProperty("keyPassword", "android")
       }
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+
+    create("release") {
+      val configuredStoreFile = releaseSigningProps.getProperty("storeFile")
+      val releaseStoreFile = when {
+        !configuredStoreFile.isNullOrBlank() -> rootProject.file(configuredStoreFile)
+        else -> null
+      }
+
+      if (releaseStoreFile != null && releaseStoreFile.exists()) {
+        storeFile = releaseStoreFile
+        storePassword = releaseSigningProps.getProperty("storePassword")
+        keyAlias = releaseSigningProps.getProperty("keyAlias")
+        keyPassword = releaseSigningProps.getProperty("keyPassword")
+      }
     }
   }
 
@@ -47,11 +75,14 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      if (file(keystorePath).exists()) {
-        signingConfig = signingConfigs.getByName("release")
+
+      val releaseStorePath = releaseSigningProps.getProperty("storeFile")
+      val hasReleaseSigning = !releaseStorePath.isNullOrBlank() && rootProject.file(releaseStorePath).exists()
+
+      signingConfig = if (hasReleaseSigning) {
+        signingConfigs.getByName("release")
       } else {
-        signingConfig = signingConfigs.getByName("debugConfig")
+        signingConfigs.getByName("debugConfig")
       }
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
