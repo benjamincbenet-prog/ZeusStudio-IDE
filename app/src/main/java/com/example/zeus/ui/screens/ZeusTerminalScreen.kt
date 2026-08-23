@@ -90,7 +90,7 @@ fun ZeusTerminalScreen(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
-                    text = "zeus-cli ~ @zeppos/zeus-cli (bip_max 320x380)",
+                    text = "zeus-cli ~ @zeppos/zeus-cli (bip_max 432x514)",
                     color = Color(0xFFC9D1D9),
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,

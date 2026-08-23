@@ -63,7 +63,7 @@ fun NewProjectDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Target: Amazfit Bip Max (Display: 320x380 px, Zepp OS 3.0)",
+                    text = "Target: Amazfit Bip Max (Display: 432x514 px, Zepp OS 5.0/6.0)",
                     color = Color(0xFF38BDF8),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)

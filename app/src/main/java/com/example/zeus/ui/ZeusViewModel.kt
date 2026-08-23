@@ -170,7 +170,7 @@ class ZeusViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isBuilding = true) }
             if (!isSilent) {
-                addTerminalLog("🔨 Building project '${_uiState.value.activeProject.name}' for Bip Max (320x380)...", ZeusLogEntry.LogLevel.ZEUS)
+                addTerminalLog("🔨 Building project '${_uiState.value.activeProject.name}' for Bip Max (432x514)...", ZeusLogEntry.LogLevel.ZEUS)
             }
 
             delay(300) // Simulated compile cycle
@@ -314,7 +314,7 @@ class ZeusViewModel : ViewModel() {
                     statusMessage = "Package installed on Bip Max!"
                 )
             }
-            addTerminalLog("✅ Package deployed & running on Bip Max (320x380 screen)!", ZeusLogEntry.LogLevel.SUCCESS)
+            addTerminalLog("✅ Package deployed & running on Bip Max (432x514 screen)!", ZeusLogEntry.LogLevel.SUCCESS)
         }
     }
 
