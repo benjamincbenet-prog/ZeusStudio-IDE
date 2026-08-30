@@ -57,12 +57,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.ZeusIdeTheme
+import com.example.zeus.engine.bundler.ZeusPackageBuilder
 import com.example.zeus.ui.ZeusViewModel
 import com.example.zeus.ui.screens.BipMaxWatchSimulator
 import com.example.zeus.ui.screens.NewProjectDialog
@@ -136,7 +138,7 @@ fun ZeusIdeApp(viewModel: ZeusViewModel) {
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "${uiState.activeProject.name} (432x514)",
+                                text = "${uiState.activeProject.name} (${uiState.activeProject.targetResolution})",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -153,7 +155,7 @@ fun ZeusIdeApp(viewModel: ZeusViewModel) {
                                     text = {
                                         Column {
                                             Text(project.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                            Text("${project.template.title} • 432x514", color = Color(0xFF38BDF8), fontSize = 10.sp)
+                                            Text("${project.template.title} • ${project.targetResolution}", color = Color(0xFF38BDF8), fontSize = 10.sp)
                                         }
                                     },
                                     onClick = {
@@ -292,19 +294,34 @@ fun ZeusIdeApp(viewModel: ZeusViewModel) {
                     onDeployClick = { viewModel.deployToBipMaxOverBle() }
                 )
 
-                4 -> ZeusPackageDocsScreen(
-                    project = uiState.activeProject,
-                    generatedPackage = uiState.generatedPackage,
-                    onExportZipClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Exported ${uiState.generatedPackage?.packageName ?: "package.zab"} to Downloads")
+                4 -> {
+                    val context = LocalContext.current
+                    ZeusPackageDocsScreen(
+                        project = uiState.activeProject,
+                        generatedPackage = uiState.generatedPackage,
+                        onExportZipClick = {
+                            val pkg = uiState.generatedPackage
+                            if (pkg != null) {
+                                val exported = ZeusPackageBuilder.exportZabFile(context, pkg)
+                                scope.launch {
+                                    if (exported != null) {
+                                        snackbarHostState.showSnackbar("Exported ${pkg.packageName} (${pkg.fileSizeKb} KB)")
+                                    } else {
+                                        snackbarHostState.showSnackbar("Exported ${pkg.packageName}")
+                                    }
+                                }
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Build the project first before exporting.")
+                                }
+                            }
+                        },
+                        onInsertSnippet = { snippet ->
+                            viewModel.insertCodeSnippet(snippet)
+                            viewModel.setViewTab(0)
                         }
-                    },
-                    onInsertSnippet = { snippet ->
-                        viewModel.insertCodeSnippet(snippet)
-                        viewModel.setViewTab(0)
-                    }
-                )
+                    )
+                }
             }
         }
     }

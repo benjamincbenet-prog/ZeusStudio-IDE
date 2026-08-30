@@ -1,6 +1,7 @@
 package com.example.zeus.engine
 
 import com.example.zeus.data.ZeusTemplatesRepository
+import com.example.zeus.engine.parser.ZeppJsParser
 import com.example.zeus.model.ZeusLogEntry
 import com.example.zeus.model.ZeusProject
 import com.example.zeus.model.ZeusTemplate
@@ -267,35 +268,67 @@ object ZeusCliRunner {
             }
 
             "lint" -> {
-                log("🔎 Running static code analysis on ${currentProject.files.size} project files...", ZeusLogEntry.LogLevel.ZEUS)
-                val jsFiles = currentProject.files.filter { it.name.endsWith(".js") }
-                var issues = 0
-                for (f in jsFiles) {
-                    if (!f.content.contains("import")) {
-                        log("⚠️ ${f.path}: No ES module imports found. Consider using modern '@zos/*' modular imports.", ZeusLogEntry.LogLevel.WARNING)
-                        issues++
-                    }
-                    if (f.content.contains("console.log")) {
-                        log("ℹ️ ${f.path}: console.log found. Prefer '@zos/utils' log.getLogger for production builds.")
+                log("🔎 Running static AST code analysis on ${currentProject.files.size} project files...", ZeusLogEntry.LogLevel.ZEUS)
+                var totalErrors = 0
+                var totalWarnings = 0
+
+                val appJson = currentProject.files.find { it.name == "app.json" }
+                if (appJson != null) {
+                    val (valid, issues) = ZeppJsParser.validateManifest(appJson.content)
+                    if (!valid) {
+                        issues.forEach {
+                            if (it.startsWith("Warning")) {
+                                log("⚠️ [app.json] $it", ZeusLogEntry.LogLevel.WARNING)
+                                totalWarnings++
+                            } else {
+                                log("❌ [app.json] $it", ZeusLogEntry.LogLevel.ERROR)
+                                totalErrors++
+                            }
+                        }
+                    } else {
+                        log("✓ app.json manifest schema is valid.", ZeusLogEntry.LogLevel.SUCCESS)
                     }
                 }
-                if (issues == 0) {
-                    log("✅ Clean! 0 errors, 0 warnings in ${currentProject.name}.", ZeusLogEntry.LogLevel.SUCCESS)
+
+                val jsFiles = currentProject.files.filter { it.name.endsWith(".js") }
+                for (f in jsFiles) {
+                    val parsed = ZeppJsParser.parse(f.name, f.content)
+                    log("📄 ${f.path}: ${parsed.linesOfCode} lines, ${parsed.tokenCount} tokens, ${parsed.widgets.size} widgets declared.")
+                    
+                    parsed.errors.forEach { err ->
+                        log("  ❌ [Line ${err.line}:${err.column}] ${err.message}", ZeusLogEntry.LogLevel.ERROR)
+                        totalErrors++
+                    }
+                    parsed.warnings.forEach { warn ->
+                        log("  ⚠️ [Line ${warn.line}:${warn.column}] ${warn.message}", ZeusLogEntry.LogLevel.WARNING)
+                        totalWarnings++
+                    }
+                }
+
+                if (totalErrors == 0 && totalWarnings == 0) {
+                    log("✅ Clean! 0 errors, 0 warnings in '${currentProject.name}'.", ZeusLogEntry.LogLevel.SUCCESS)
                 } else {
-                    log("⚠️ Lint finished with $issues suggestion(s).", ZeusLogEntry.LogLevel.WARNING)
+                    log("ℹ️ Static analysis completed with $totalErrors error(s) and $totalWarnings warning(s).", if (totalErrors > 0) ZeusLogEntry.LogLevel.ERROR else ZeusLogEntry.LogLevel.WARNING)
                 }
                 return CliCommandResult.Output(logs)
             }
 
             "sign" -> {
                 log("🔏 Zeus Package Signer: Signing .zab bundle for Amazfit Bip Max...", ZeusLogEntry.LogLevel.ZEUS)
-                log("  • App ID: ${currentProject.id}")
-                log("  • Target Device: bip_max (432x514 AMOLED)")
-                log("  • Signature Algorithm: SHA256withRSA (2048-bit Zepp OS Developer Cert)")
-                log("  • Digest: SHA-256 (3b8f1a09...74e2)")
-                log("  • Sideload Authorization: Bip Max Hardware Bind: D4:22:CD:88:F1:04")
-                log("✓ Package signed successfully: ${currentProject.name}-v${currentProject.version}.zab", ZeusLogEntry.LogLevel.SUCCESS)
-                log("ℹ️ Ready for wireless OTA deployment via 'zeus bridge --install'", ZeusLogEntry.LogLevel.INFO)
+                val buildResult = ZeusCompiler.compile(currentProject, isRelease = true)
+                val zab = buildResult.zabPackage
+                if (zab != null) {
+                    log("  • Package: ${zab.packageName} (${zab.fileSizeKb} KB)")
+                    log("  • Target Device: bip_max (432x514 AMOLED, 302 PPI)")
+                    log("  • Signature Algorithm: SHA256withRSA (2048-bit Zepp OS Developer Cert)")
+                    log("  • SHA-256 Digest: ${zab.sha256Digest}")
+                    log("  • Checksum CRC32: ${zab.checksumCrc32}")
+                    log("  • Hardware Bind: Amazfit Bip Max (D4:22:CD:88:F1:04)")
+                    log("✓ Package signed successfully: dist/${zab.packageName}", ZeusLogEntry.LogLevel.SUCCESS)
+                    log("ℹ️ Ready for wireless OTA deployment via 'zeus bridge --install'", ZeusLogEntry.LogLevel.INFO)
+                } else {
+                    log("❌ Package signing failed due to build errors.", ZeusLogEntry.LogLevel.ERROR)
+                }
                 return CliCommandResult.Output(logs)
             }
 

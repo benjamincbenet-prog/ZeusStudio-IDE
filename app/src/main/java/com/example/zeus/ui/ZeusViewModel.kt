@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.zeus.data.ZeusTemplatesRepository
 import com.example.zeus.engine.CliCommandResult
 import com.example.zeus.engine.CompilationResult
-import com.example.zeus.engine.DispatcherContext
 import com.example.zeus.engine.ZeusCliRunner
 import com.example.zeus.engine.ZeusCompiler
 import com.example.zeus.model.FileType
@@ -42,13 +41,7 @@ data class ZeusUiState(
     val showNewProjectDialog: Boolean = false,
     val showApiReferenceDialog: Boolean = false,
     val showExportPackageDialog: Boolean = false,
-    val statusMessage: String? = null,
-    /** Whether the host device has a Bluetooth adapter. Updated by the UI/Activity. */
-    val isBluetoothAvailable: Boolean = false,
-    /** Whether the Bluetooth adapter is currently enabled. Updated by the UI/Activity. */
-    val isBluetoothEnabled: Boolean = false,
-    /** Whether BLUETOOTH_SCAN and BLUETOOTH_CONNECT runtime permissions are granted. Updated by the UI/Activity. */
-    val hasBlePermissions: Boolean = false
+    val statusMessage: String? = null
 )
 
 class ZeusViewModel : ViewModel() {
@@ -177,10 +170,9 @@ class ZeusViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isBuilding = true) }
             if (!isSilent) {
-                addTerminalLog("🔨 Building project '${_uiState.value.activeProject.name}' for Bip Max (432x514)...", ZeusLogEntry.LogLevel.ZEUS)
+                addTerminalLog("🔨 Building project '${_uiState.value.activeProject.name}' for Bip Max (${_uiState.value.activeProject.targetResolution})...", ZeusLogEntry.LogLevel.ZEUS)
             }
 
-            delay(300) // Simulated compile cycle
             val result = ZeusCompiler.compile(_uiState.value.activeProject, isRelease)
 
             if (!isSilent) {
@@ -211,21 +203,11 @@ class ZeusViewModel : ViewModel() {
 
         addTerminalLog("zeus > $trimmed", ZeusLogEntry.LogLevel.ZEUS)
 
-        val state = _uiState.value
-        val context = DispatcherContext(
-            project = state.activeProject,
-            isBleConnected = state.isBleConnected,
-            connectedDeviceMac = state.connectedDeviceMac,
-            connectedDeviceName = state.connectedDeviceName,
-            isBluetoothEnabled = state.isBluetoothEnabled,
-            isBluetoothAvailable = state.isBluetoothAvailable,
-            hasBlePermissions = state.hasBlePermissions,
-            lastBuildArtifact = state.generatedPackage
-        )
-
         val result = ZeusCliRunner.execute(
             commandLine = trimmed,
-            context = context
+            currentProject = _uiState.value.activeProject,
+            isDevRunning = _uiState.value.isDevServerRunning,
+            isBleConnected = _uiState.value.isBleConnected
         )
 
         when (result) {
@@ -281,20 +263,6 @@ class ZeusViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Called by the Activity/UI when the host Bluetooth state or runtime permissions change.
-     * This feeds real values into [DispatcherContext] so doctor/bridge commands report truthfully.
-     */
-    fun updateBluetoothState(isAvailable: Boolean, isEnabled: Boolean, hasPermissions: Boolean) {
-        _uiState.update {
-            it.copy(
-                isBluetoothAvailable = isAvailable,
-                isBluetoothEnabled = isEnabled,
-                hasBlePermissions = hasPermissions
-            )
-        }
-    }
-
     fun connectBleDevice(name: String = "Amazfit Bip Max", mac: String = "D4:22:CD:88:F1:04") {
         viewModelScope.launch {
             addTerminalLog("🔗 Connecting to $name ($mac)...", ZeusLogEntry.LogLevel.BLE)
@@ -345,7 +313,7 @@ class ZeusViewModel : ViewModel() {
                     statusMessage = "Package installed on Bip Max!"
                 )
             }
-            addTerminalLog("✅ Package deployed & running on Bip Max (432x514 screen)!", ZeusLogEntry.LogLevel.SUCCESS)
+            addTerminalLog("✅ Package deployed & running on Bip Max (${_uiState.value.activeProject.targetResolution} screen)!", ZeusLogEntry.LogLevel.SUCCESS)
         }
     }
 

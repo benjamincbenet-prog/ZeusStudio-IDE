@@ -71,6 +71,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.geometry.CornerRadius
+import com.example.zeus.engine.parser.ZeppJsParser
+import com.example.zeus.engine.parser.ZeppWidgetType
+import com.example.zeus.engine.runtime.ZeppRuntimeInterpreter
 import com.example.zeus.model.SensorSimulationState
 import com.example.zeus.model.ZeusProject
 import com.example.zeus.model.ZeusTemplate
@@ -97,6 +103,18 @@ fun BipMaxWatchSimulator(
     var currentDateString by remember { mutableStateOf("") }
     var interactiveCounter by remember { mutableIntStateOf(0) }
     var isWorkoutPaused by remember { mutableStateOf(false) }
+    var runtimeMode by remember { mutableStateOf(0) } // 0: Live JS AST Runtime, 1: High-Fidelity View
+
+    val activeJsFile = remember(project.files, project.activeFileId) {
+        project.files.firstOrNull { it.id == project.activeFileId && it.name.endsWith(".js") }
+            ?: project.files.firstOrNull { it.name.endsWith(".js") }
+    }
+
+    val parsedJsProgram = remember(activeJsFile?.content) {
+        if (activeJsFile != null) {
+            ZeppJsParser.parse(activeJsFile.name, activeJsFile.content)
+        } else null
+    }
 
     LaunchedEffect(Unit) {
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -159,17 +177,24 @@ fun BipMaxWatchSimulator(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(Color(0xFF22C55E), CircleShape)
+                    FilterChip(
+                        selected = runtimeMode == 0,
+                        onClick = { runtimeMode = 0 },
+                        label = { Text("Live AST (${parsedJsProgram?.widgets?.size ?: 0} W)", fontSize = 10.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF0284C7),
+                            selectedLabelColor = Color.White
+                        )
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "LIVE",
-                        color = Color(0xFF22C55E),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                    FilterChip(
+                        selected = runtimeMode == 1,
+                        onClick = { runtimeMode = 1 },
+                        label = { Text("Preset UI", fontSize = 10.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF475569),
+                            selectedLabelColor = Color.White
+                        )
                     )
                 }
             }
@@ -210,37 +235,45 @@ fun BipMaxWatchSimulator(
                         .border(1.dp, Color(0xFF334155), RoundedCornerShape(32.dp))
                         .testTag("bip_max_display_canvas")
                 ) {
-                    // Watch Content based on Project Template
-                    when (project.template) {
-                        ZeusTemplate.BIP_MAX_DIGITAL_PRO -> {
-                            DigitalProWatchFaceView(
-                                time = currentTimeString.ifEmpty { "10:09" },
-                                sec = currentSecString.ifEmpty { ":42" },
-                                date = currentDateString.ifEmpty { "MON • OCT 24" },
-                                sensorState = sensorState,
-                                pulseScale = pulseScale
-                            )
-                        }
-                        ZeusTemplate.BIP_MAX_FITNESS_TRACKER -> {
-                            FitnessTrackerView(
-                                sensorState = sensorState,
-                                isPaused = isWorkoutPaused,
-                                onTogglePause = { isWorkoutPaused = !isWorkoutPaused }
-                            )
-                        }
-                        ZeusTemplate.BIP_MAX_WEATHER_WIDGET -> {
-                            WeatherWidgetView(sensorState = sensorState)
-                        }
-                        ZeusTemplate.BIP_MAX_BLE_CONTROLLER -> {
-                            BleRemoteView(
-                                interactiveCounter = interactiveCounter,
-                                onButtonClick = { interactiveCounter++ }
-                            )
-                        }
-                        ZeusTemplate.BIP_MAX_MINIMAL_ANALOG -> {
-                            MinimalAnalogView(
-                                date = currentDateString.ifEmpty { "OCT 24" }
-                            )
+                    if (runtimeMode == 0 && parsedJsProgram != null && parsedJsProgram.widgets.isNotEmpty()) {
+                        DynamicZeppWidgetCanvas(
+                            widgets = parsedJsProgram.widgets,
+                            sensorState = sensorState,
+                            currentTimeString = currentTimeString.ifEmpty { "10:09" }
+                        )
+                    } else {
+                        // Watch Content based on Project Template
+                        when (project.template) {
+                            ZeusTemplate.BIP_MAX_DIGITAL_PRO -> {
+                                DigitalProWatchFaceView(
+                                    time = currentTimeString.ifEmpty { "10:09" },
+                                    sec = currentSecString.ifEmpty { ":42" },
+                                    date = currentDateString.ifEmpty { "MON • OCT 24" },
+                                    sensorState = sensorState,
+                                    pulseScale = pulseScale
+                                )
+                            }
+                            ZeusTemplate.BIP_MAX_FITNESS_TRACKER -> {
+                                FitnessTrackerView(
+                                    sensorState = sensorState,
+                                    isPaused = isWorkoutPaused,
+                                    onTogglePause = { isWorkoutPaused = !isWorkoutPaused }
+                                )
+                            }
+                            ZeusTemplate.BIP_MAX_WEATHER_WIDGET -> {
+                                WeatherWidgetView(sensorState = sensorState)
+                            }
+                            ZeusTemplate.BIP_MAX_BLE_CONTROLLER -> {
+                                BleRemoteView(
+                                    interactiveCounter = interactiveCounter,
+                                    onButtonClick = { interactiveCounter++ }
+                                )
+                            }
+                            ZeusTemplate.BIP_MAX_MINIMAL_ANALOG -> {
+                                MinimalAnalogView(
+                                    date = currentDateString.ifEmpty { "OCT 24" }
+                                )
+                            }
                         }
                     }
                 }
@@ -892,3 +925,121 @@ private fun MinimalAnalogView(date: String) {
         }
     }
 }
+
+@Composable
+fun DynamicZeppWidgetCanvas(
+    widgets: List<com.example.zeus.engine.parser.ZeppWidgetDef>,
+    sensorState: SensorSimulationState,
+    currentTimeString: String,
+    modifier: Modifier = Modifier
+) {
+    val evaluated = remember(widgets, sensorState, currentTimeString) {
+        ZeppRuntimeInterpreter.evaluateWidgets(widgets, sensorState)
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF090D16))
+    ) {
+        val scaleX = maxWidth.value / 432f
+        val scaleY = maxHeight.value / 514f
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            for (w in evaluated) {
+                val left = w.x * scaleX
+                val top = w.y * scaleY
+                val width = w.w * scaleX
+                val height = w.h * scaleY
+
+                when (w.type) {
+                    ZeppWidgetType.FILL_RECT -> {
+                        drawRoundRect(
+                            color = w.color,
+                            topLeft = Offset(left, top),
+                            size = Size(width, height),
+                            cornerRadius = CornerRadius(w.radius * scaleX, w.radius * scaleY)
+                        )
+                    }
+                    ZeppWidgetType.STROKE_RECT -> {
+                        drawRoundRect(
+                            color = w.color,
+                            topLeft = Offset(left, top),
+                            size = Size(width, height),
+                            cornerRadius = CornerRadius(w.radius * scaleX, w.radius * scaleY),
+                            style = Stroke(width = (w.lineWidth * scaleX).coerceAtLeast(1f))
+                        )
+                    }
+                    ZeppWidgetType.ARC -> {
+                        drawArc(
+                            color = w.color,
+                            startAngle = w.startAngle - 90f,
+                            sweepAngle = (w.endAngle - w.startAngle),
+                            useCenter = false,
+                            topLeft = Offset(left, top),
+                            size = Size(width, height),
+                            style = Stroke(width = (w.lineWidth * scaleX).coerceAtLeast(2f), cap = StrokeCap.Round)
+                        )
+                    }
+                    ZeppWidgetType.CIRCLE -> {
+                        drawCircle(
+                            color = w.color,
+                            radius = width / 2f,
+                            center = Offset(left + width / 2f, top + height / 2f)
+                        )
+                    }
+                    else -> {}
+                }
+            }
+        }
+
+        // Overlay text and buttons
+        for (w in evaluated) {
+            val left = (w.x * scaleX).dp
+            val top = (w.y * scaleY).dp
+            val width = (w.w * scaleX).dp
+            val height = (w.h * scaleY).dp
+
+            if (w.type == ZeppWidgetType.TEXT && w.text.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = left, y = top)
+                        .size(width = width, height = height),
+                    contentAlignment = when (w.align) {
+                        "LEFT" -> Alignment.CenterStart
+                        "RIGHT" -> Alignment.CenterEnd
+                        else -> Alignment.Center
+                    }
+                ) {
+                    Text(
+                        text = w.text,
+                        color = w.color,
+                        fontSize = (w.textSize * scaleY).coerceAtLeast(8f).sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = when (w.align) {
+                            "LEFT" -> TextAlign.Start
+                            "RIGHT" -> TextAlign.End
+                            else -> TextAlign.Center
+                        }
+                    )
+                }
+            } else if (w.type == ZeppWidgetType.BUTTON) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = left, y = top)
+                        .size(width = width, height = height)
+                        .background(w.color, RoundedCornerShape((w.radius * scaleX).dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = w.text.ifEmpty { "BUTTON" },
+                        color = Color.White,
+                        fontSize = (w.textSize * scaleY).coerceAtLeast(10f).sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+

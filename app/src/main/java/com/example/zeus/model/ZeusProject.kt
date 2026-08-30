@@ -120,8 +120,32 @@ data class ZabPackage(
     val checksumCrc32: String,
     val builtAtTimestamp: Long = System.currentTimeMillis(),
     val fileCount: Int,
-    val appType: String
-)
+    val appType: String,
+    val sha256Digest: String = "",
+    val packageBytes: ByteArray? = null
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as ZabPackage
+        if (packageName != other.packageName) return false
+        if (version != other.version) return false
+        if (checksumCrc32 != other.checksumCrc32) return false
+        if (packageBytes != null) {
+            if (other.packageBytes == null) return false
+            if (!packageBytes.contentEquals(other.packageBytes)) return false
+        } else if (other.packageBytes != null) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = packageName.hashCode()
+        result = 31 * result + version.hashCode()
+        result = 31 * result + checksumCrc32.hashCode()
+        result = 31 * result + (packageBytes?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 data class SensorSimulationState(
     val heartRateBpm: Int = 78,

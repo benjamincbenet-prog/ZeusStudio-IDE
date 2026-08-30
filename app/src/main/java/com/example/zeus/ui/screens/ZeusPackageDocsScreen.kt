@@ -160,6 +160,9 @@ private fun PackageInspectorTab(
                             PackageDetailRow("Target Screen", "432 x 514 (2.07\" AMOLED)")
                             PackageDetailRow("Bytecode Size", "${generatedPackage.fileSizeKb} KB (QuickJS/Hermes)")
                             PackageDetailRow("Checksum CRC32", generatedPackage.checksumCrc32)
+                            if (generatedPackage.sha256Digest.isNotEmpty()) {
+                                PackageDetailRow("SHA-256 Digest", generatedPackage.sha256Digest.take(24) + "...")
+                            }
                             PackageDetailRow("App Type", project.appType.uppercase())
                             PackageDetailRow("Zepp OS SDK", "v5.0.0 / v6.0.0 (API Level 5+)")
                             PackageDetailRow("Included Files", "${generatedPackage.fileCount} source files & assets")
