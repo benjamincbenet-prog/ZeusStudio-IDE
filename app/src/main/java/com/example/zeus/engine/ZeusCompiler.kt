@@ -19,6 +19,11 @@ data class CompilationResult(
 
 object ZeusCompiler {
 
+    fun isToolchainConfigured(): Boolean {
+        // Built-in Zepp OS AST compiler and QuickJS packager is active and available
+        return true
+    }
+
     fun compile(project: ZeusProject, isRelease: Boolean = false): CompilationResult {
         val startTime = System.currentTimeMillis()
         val logs = mutableListOf<String>()
